@@ -19,7 +19,7 @@ def setup_driver():
     driver.implicitly_wait(10)
     return driver
 
-def login_openbmc():
+def login_openbmc(user, password):
     driver = setup_driver()
     try:
         driver.get('https://127.0.0.1:2443')
@@ -29,11 +29,11 @@ def login_openbmc():
         password_field = driver.find_element(By.ID, 'password')
         login_button = driver.find_element(By.XPATH, '//button[@type="submit"]')
         
-        username_field.send_keys('root')
-        password_field.send_keys('0penBmc')
+        username_field.send_keys(user)
+        password_field.send_keys(password)
         login_button.click()
         
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 5).until(
             lambda driver: "/login" not in driver.current_url
         )
         return 0
@@ -45,4 +45,8 @@ def login_openbmc():
         driver.quit()
 
 def test_login_success():
-    assert login_openbmc() == 0
+    assert login_openbmc('root', '0penBmc') == 0
+
+
+def test_login_fail():
+    assert login_openbmc('nikita', 'gastello') == 1
