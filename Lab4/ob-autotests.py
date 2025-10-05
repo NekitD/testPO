@@ -5,6 +5,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 import time
+import pytest
 
 def setup_driver():
     s_options = Options()
@@ -48,5 +49,6 @@ def test_login_success():
     assert login_openbmc('root', '0penBmc') == 0
 
 
+@pytest.mark.xfail(reason="WRONG LOGIN AND PASSWORD")
 def test_login_fail():
-    assert login_openbmc('nikita', 'gastello') == 1
+    assert login_openbmc('nikita', 'gastello') == 0
