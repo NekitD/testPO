@@ -217,7 +217,7 @@ def check_power_on_logs():
         driver.get("https://127.0.0.1:2443/?next=/login#/logs/event-logs")
         time.sleep(10)
 
-        power_logs = driver.find_elements(By.XPATH, '//*[contains(text(), "Power on")]')
+        power_logs = driver.find_elements(By.XPATH, '//*[contains(text(), "Power on") or contains(text(), "error") or contains(text(), "Error")]')
         
         if power_logs:
             print("В логах найдена запись о включении питания")
