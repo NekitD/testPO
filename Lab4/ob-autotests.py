@@ -39,10 +39,10 @@ def login_openbmc(user, password):
         WebDriverWait(driver, 5).until(
             lambda driver: "/login" not in driver.current_url
         )
-        return 0
+        return True
         
     except:
-        return 1
+        return False
     
     finally:
         driver.quit()
@@ -57,7 +57,7 @@ def account_block_openbmc():
             print(f"Попытка {attempt}/{max_attempts}")
             
             driver.get('https://127.0.0.1:2443/login')
-            time.sleep(3)
+            time.sleep(10)
             
             try:
                 WebDriverWait(driver, 10).until(
@@ -65,7 +65,7 @@ def account_block_openbmc():
                 )
             except TimeoutException:
                 print("Форма входа не загрузилась")
-                return 1
+                return False
             
             try:
                 username_field = driver.find_element(By.ID, 'username')  
@@ -82,7 +82,7 @@ def account_block_openbmc():
                 
             except NoSuchElementException:
                 print("Не удалось найти элементы формы")
-                return 1
+                return False
             
             try:
                 fail_message = driver.find_element(By.XPATH, '//*[contains(text(), "error") or contains(text(), "invalid") or contains(text(), "incorrect") or contains(text(), "невер")]')
@@ -123,26 +123,130 @@ def account_block_openbmc():
             try:
                 block_message = driver.find_element(By.XPATH, '//*[contains(text(), "lock") or contains(text(), "block") or contains(text(), "temporarily") or contains(text(), "wait") or contains(text(), "заблок")]')
                 print(f"Аккаунт заблокирован: {block_message.text}")
-                return 0
+                return True
             except:
                 print("Аккаунт заблокирован (без сообщения)")
-                return 0
+                return True
         else:
             print("Аккаунт НЕ заблокирован - вошли успешно")
-            return 1  
+            return False  
             
     except Exception as e:
         print(f"ОШИБКА: {e}")
-        return 1
+        return False
+
+
+def inventory_show():
+    driver = setup_driver()
+    try:
+        driver.get("https://127.0.0.1:2443/login")
+        time.sleep(3)
+        
+        driver.find_element(By.ID, 'username').send_keys('root')
+        driver.find_element(By.ID, 'password').send_keys('0penBmc')
+        driver.find_element(By.XPATH, '//button[@type="submit"]').click()
+        time.sleep(3)
+
+        url = "https://127.0.0.1:2443/#/hardware-status/inventory"
+        
+        inventory_found = False
+        try:
+            driver.get(url)
+            time.sleep(3)
+                
+            inventory_elements = driver.find_elements(By.XPATH, 
+                '//*[contains(text(), "CPU") or contains(text(), "Processor") or '
+                'contains(text(), "Memory") or contains(text(), "RAM") or '
+                'contains(text(), "DIMM") or contains(text(), "Hardware") or '
+                'contains(text(), "Inventory") or contains(text(), "System")]'
+            )
+                
+            if inventory_elements:
+                print(f"Найдены элементы инвентаризации на {url}:")
+                for elem in inventory_elements[:5]:
+                    print(f"   - {elem.text}")
+                inventory_found = True           
+        except Exception as e:
+            print(f"Ошибка при проверке {url}: {e}")
+
+        
+        if not inventory_found:
+            print("Поиск инвентаризации в текущем интерфейсе...")
+            inventory_buttons = driver.find_elements(By.XPATH,
+                '//*[contains(text(), "Inventory") or contains(text(), "Hardware") or '
+                    'contains(text(), "System") or contains(text(), "Components")]'
+            )
+            
+            if inventory_buttons:
+                print("Найдены кнопки инвентаризации:")
+                for btn in inventory_buttons:
+                    print(f"   - {btn.text}")
+                    try:
+                        btn.click()
+                        time.sleep(3)
+                        inventory_found = True
+                        break
+                    except:
+                        continue
+        
+        return inventory_found
+        
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        return False
+
+
+def check_power_on_logs():
+    driver = setup_driver()
+    try:
+        driver.get("https://127.0.0.1:2443/login")
+        time.sleep(10)
+        driver.find_element(By.ID, 'username').send_keys('root')
+        driver.find_element(By.ID, 'password').send_keys('0penBmc')
+        driver.find_element(By.XPATH, '//button[@type="submit"]').click()
+        time.sleep(10)
+
+        driver.get("https://127.0.0.1:2443/?next=/login#/operations/server-power-operations")
+        time.sleep(10)
+        power_on_button = driver.find_element(By.XPATH, '//button[contains(text(), "Power on")]')
+        power_on_button.click()
+
+        time.sleep(10)
+        
+
+        driver.get("https://127.0.0.1:2443/?next=/login#/logs/event-logs")
+        time.sleep(10)
+
+        power_logs = driver.find_elements(By.XPATH, '//*[contains(text(), "Power on")]')
+        
+        if power_logs:
+            print("В логах найдена запись о включении питания")
+            for log in power_logs[:2]:
+                print(f"   - {log.text}")
+            return True
+        else:
+            print("В логах нет записи о включении питания")
+            return False
+
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        return False
 
 #---------------------------------------------------------------------------------------
 
 def test_login_success():
-    assert login_openbmc('root', '0penBmc') == 0
+    assert login_openbmc('root', '0penBmc') == True
 
 @pytest.mark.xfail(reason="WRONG LOGIN AND PASSWORD")
 def test_login_fail():
-    assert login_openbmc('nikita', 'gastello') == 0
+    assert login_openbmc('nikita', 'gastello') == True
 
 def test_account_block():
-    assert account_block_openbmc() == 0
+    assert account_block_openbmc() == True
+
+
+def test_inventory_show():
+    assert inventory_show() == True
+
+def test_logs_show():
+    assert check_power_on_logs() == True
