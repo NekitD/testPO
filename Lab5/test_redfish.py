@@ -82,6 +82,11 @@ def power(redfish_session, base_url):
         
         time.sleep(3)
         
+        if a_response.status_code != 200:
+            logger.warning(f"Ошибка post запроса: {a_response.status_code}")
+            return False
+
+
         b_response = redfish_session.get(base_url + 'Systems/system')
         if b_response.status_code != 200:
             logger.warning(f"Ошибка получения состояния питания: {b_response.status_code}")
