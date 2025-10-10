@@ -13,63 +13,105 @@ logger = logging.getLogger(__name__)
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
-def red_auth():
-    url = 'https://127.0.0.1:2443/redfish/v1/'
-    v_auth = HTTPBasicAuth('root', '0penBmc')
-    response = requests.get(url, auth=v_auth, verify=False)
-    return response.status_code
-
-def test_auth():
-    assert red_auth() == 200
-
-#--------------------------------------------------------------------------------------------------------------------------------
-
-def info():
-    url = 'https://127.0.0.1:2443/redfish/v1/'
-    v_auth = HTTPBasicAuth('root', '0penBmc')
-
-    session = requests.Session()
-    response = session.get(url + 'Systems/system', auth=v_auth, verify=False)
-    return (response.status_code == 200) and ('Status' in response.json() and 'PowerState' in response.json())
-
-
-def test_info():
-    assert info() == True
-
-#--------------------------------------------------------------------------------------------------------------------------------
-
-def power():
-    url = 'https://127.0.0.1:2443/redfish/v1/'
-    v_auth = HTTPBasicAuth('root', '0penBmc')
-    payload = {"ResetType": "On"}
-
-    session = requests.Session()
-    a_response = session.post(url + 'Systems/system/Actions/ComputerSystem.Reset', auth=v_auth, json=payload, verify=False)
-    time.sleep(3)
-    b_response = session.get(url + 'Systems/system', auth=v_auth, verify=False)
-    power_state = b_response.json().get('PowerState', 'Unknown')
-    print(f'Статус post запроса: {a_response.status_code}')
-    return (a_response.status_code == 202) and (power_state== "On")
-
-def test_power():
-    assert power() == True
-
-#--------------------------------------------------------------------------------------------------------------------------------
-
-def cpu_temperature():
-    url = 'https://127.0.0.1:2443/redfish/v1/'
-    auth = HTTPBasicAuth('root', '0penBmc')
-    
+@pytest.fixture(scope="session")
+def redfish_session():
     session = requests.Session()
     session.auth = ('root', '0penBmc')
     session.verify = False
+    session.headers.update({'Content-Type': 'application/json'})
     
+    logger.info("Создана сессия Redfish")
+    return session
+
+@pytest.fixture(scope="session")
+def base_url():
+    return 'https://127.0.0.1:2443/redfish/v1/'
+
+#--------------------------------------------------------------------------------------------------------------------------------
+
+def red_auth(redfish_session, base_url):
     try:
-        thermal_url = url + 'Chassis/chassis/Thermal'
-        response = session.get(thermal_url)
+        logger.info("Проверка аутентификации Redfish")
+        response = redfish_session.get(base_url)
+        logger.info(f"Статус аутентификации: {response.status_code}")
+        return response.status_code
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка аутентификации: {e}")
+        return None
+
+def test_auth(redfish_session, base_url):
+    assert red_auth(redfish_session, base_url) == 200
+
+#--------------------------------------------------------------------------------------------------------------------------------
+
+def info(redfish_session, base_url):
+    try:
+        logger.info("Получение информации о системе")
+        response = redfish_session.get(base_url + 'Systems/system')
         
         if response.status_code != 200:
-            print(f"Ошибка: {response.status_code}")
+            logger.warning(f"Ошибка получения информации: {response.status_code}")
+            return False
+            
+        data = response.json()
+        has_status = 'Status' in data
+        has_power_state = 'PowerState' in data
+        
+        logger.info(f"Информация о системе - Status: {has_status}, PowerState: {has_power_state}")
+        return has_status and has_power_state
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка получения информации о системе: {e}")
+        return False
+    except ValueError as e:
+        logger.error(f"Ошибка парсинга JSON: {e}")
+        return False
+
+def test_info(redfish_session, base_url):
+    assert info(redfish_session, base_url) == True
+
+#--------------------------------------------------------------------------------------------------------------------------------
+
+def power(redfish_session, base_url):
+    try:
+        logger.info("Проверка управления питанием")
+        payload = {"ResetType": "On"}
+        
+        a_response = redfish_session.post(base_url + 'Systems/system/Actions/ComputerSystem.Reset', json=payload)
+        logger.info(f"Статус POST запроса питания: {a_response.status_code}")
+        
+        time.sleep(3)
+        
+        b_response = redfish_session.get(base_url + 'Systems/system')
+        if b_response.status_code != 200:
+            logger.warning(f"Ошибка получения состояния питания: {b_response.status_code}")
+            return False
+            
+        power_state = b_response.json().get('PowerState', 'Unknown')
+        logger.info(f"Текущее состояние питания: {power_state}")
+        
+        return (a_response.status_code == 202) and (power_state == "On")
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка управления питанием: {e}")
+        return False
+    except ValueError as e:
+        logger.error(f"Ошибка парсинга JSON состояния питания: {e}")
+        return False
+
+def test_power(redfish_session, base_url):
+    assert power(redfish_session, base_url) == True
+
+#--------------------------------------------------------------------------------------------------------------------------------
+
+def cpu_temperature(redfish_session, base_url):
+    try:
+        logger.info("Проверка температуры CPU")
+        thermal_url = base_url + 'Chassis/chassis/Thermal'
+        response = redfish_session.get(thermal_url)
+        
+        if response.status_code != 200:
+            logger.warning(f"Ошибка получения температур: {response.status_code}")
             return False
         
         thermal_data = response.json()
@@ -91,7 +133,7 @@ def cpu_temperature():
                 })
         
         if not cpu_temperatures:
-            print("Не найдено сенсоров")
+            logger.warning("Не найдено сенсоров температуры CPU")
             return False
         
         all_within_limits = True
@@ -101,41 +143,42 @@ def cpu_temperature():
             warning = cpu_temp['warning']
             critical = cpu_temp['critical']
             
-            print(f"  {cpu_temp['name']}: {temp}°C")
+            logger.info(f"Сенсор {cpu_temp['name']}: {temp}°C")
             
             if temp is None:
-                print(f"    Не найдено температуры")
+                logger.warning(f"Нет данных температуры для {cpu_temp['name']}")
                 all_within_limits = False
             elif critical and temp >= critical:
-                print(f"    КРИТИЧЕСКАЯ: превышает{critical}°C")
+                logger.error(f"КРИТИЧЕСКАЯ температура {cpu_temp['name']}: {temp}°C превышает {critical}°C")
                 all_within_limits = False
             elif warning and temp >= warning:
-                print(f"    Высокая: превышает({warning}°C)")
+                logger.warning(f"Высокая температура {cpu_temp['name']}: {temp}°C превышает {warning}°C")
             else:
-                print(f"    В пределах нормы")
+                logger.info(f"Температура {cpu_temp['name']} в пределах нормы")
         
         return all_within_limits
         
-    except Exception as e:
-        print(f"Не удалось проверить температуру CPU: {e}")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка получения температуры CPU: {e}")
+        return False
+    except ValueError as e:
+        logger.error(f"Ошибка парсинга JSON температур: {e}")
         return False
 
-def test_cpu_temperature():
-    assert cpu_temperature() == True
+def test_cpu_temperature(redfish_session, base_url):
+    assert cpu_temperature(redfish_session, base_url) == True
 
 #--------------------------------------------------------------------------------------------------------------------------------
 
-import subprocess
-import re
-
 def get_ipmi_sensors():
     try:
+        logger.info("Получение сенсоров через IPMI")
         result = subprocess.run([
             'ipmitool', 'sensor', 'list'
         ], capture_output=True, text=True, timeout=30)
         
         if result.returncode != 0:
-            print(f"IPMI FAIL: {result.stderr}")
+            logger.error(f"Ошибка IPMI: {result.stderr}")
             return {}
         
         sensors = {}
@@ -157,43 +200,41 @@ def get_ipmi_sensors():
                             'raw_line': line
                         }
         
+        logger.info(f"Получено {len(sensors)} сенсоров IPMI")
         return sensors
         
     except subprocess.TimeoutExpired:
-        print("IPMI command timeout")
+        logger.error("Таймаут команды IPMI")
         return {}
     except Exception as e:
-        print(f"Нет IPMI сенсоров: {e}")
+        logger.error(f"Ошибка получения сенсоров IPMI: {e}")
         return {}
 
-def get_redfish_sensors():
-    base_url = 'https://127.0.0.1:2443/redfish/v1/'
-    session = requests.Session()
-    session.auth = ('root', '0penBmc')
-    session.verify = False
-    
+def get_redfish_sensors(redfish_session, base_url):
     try:
-        thermal_url = base_url + 'Chassis/chassis/Thermal'
-        thermal_response = session.get(thermal_url)
-        
-        if thermal_response.status_code != 200:
-            return {}
-        
-        thermal_data = thermal_response.json()
+        logger.info("Получение сенсоров через Redfish")
         sensors = {}
         
-        for temp in thermal_data.get('Temperatures', []):
-            name = temp.get('Name', '')
-            reading = temp.get('ReadingCelsius')
-            if reading is not None:
-                sensors[name] = {
-                    'value': reading,
-                    'type': 'temperature',
-                    'unit': 'Celsius'
-                }
+        # Получение температурных сенсоров
+        thermal_url = base_url + 'Chassis/chassis/Thermal'
+        thermal_response = redfish_session.get(thermal_url)
         
+        if thermal_response.status_code == 200:
+            thermal_data = thermal_response.json()
+            
+            for temp in thermal_data.get('Temperatures', []):
+                name = temp.get('Name', '')
+                reading = temp.get('ReadingCelsius')
+                if reading is not None:
+                    sensors[name] = {
+                        'value': reading,
+                        'type': 'temperature',
+                        'unit': 'Celsius'
+                    }
+        
+        # Получение сенсоров напряжения
         power_url = base_url + 'Chassis/chassis/Power'
-        power_response = session.get(power_url)
+        power_response = redfish_session.get(power_url)
         
         if power_response.status_code == 200:
             power_data = power_response.json()
@@ -207,81 +248,85 @@ def get_redfish_sensors():
                         'unit': 'Volts'
                     }
         
+        logger.info(f"Получено {len(sensors)} сенсоров Redfish")
         return sensors
         
-    except Exception as e:
-        print(f"Redfish FAIL: {e}")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка получения сенсоров Redfish: {e}")
+        return {}
+    except ValueError as e:
+        logger.error(f"Ошибка парсинга JSON сенсоров Redfish: {e}")
         return {}
 
-def compare_sensors_redfish_ipmi():
-
-    print("Сравнение сенсоров Redfish и IPMI...")
-    
-    redfish_sensors = get_redfish_sensors()
-    ipmi_sensors = get_ipmi_sensors()
-    
-    if not redfish_sensors:
-        print("Нет Redfish сенсоров")
-        return False
-    
-    if not ipmi_sensors:
-        print("Нет IPMI сенсоров")
-        return False
-    
-    print(f"Redfish: {len(redfish_sensors)}")
-    print(f"IPMI: {len(ipmi_sensors)}")
-    
-    common_sensors = set()
-    redfish_only = set(redfish_sensors.keys())
-    ipmi_only = set(ipmi_sensors.keys())
-    
-    for rf_name in redfish_sensors:
-        for ipmi_name in ipmi_sensors:
-            rf_lower = rf_name.lower()
-            ipmi_lower = ipmi_name.lower()
+def compare_sensors_redfish_ipmi(redfish_session, base_url):
+    try:
+        logger.info("Сравнение сенсоров Redfish и IPMI...")
+        
+        redfish_sensors = get_redfish_sensors(redfish_session, base_url)
+        ipmi_sensors = get_ipmi_sensors()
+        
+        if not redfish_sensors:
+            logger.error("Нет данных сенсоров Redfish")
+            return False
+        
+        if not ipmi_sensors:
+            logger.error("Нет данных сенсоров IPMI")
+            return False
+        
+        logger.info(f"Redfish сенсоров: {len(redfish_sensors)}, IPMI сенсоров: {len(ipmi_sensors)}")
+        
+        common_sensors = set()
+        redfish_only = set(redfish_sensors.keys())
+        ipmi_only = set(ipmi_sensors.keys())
+        
+        for rf_name in redfish_sensors:
+            for ipmi_name in ipmi_sensors:
+                rf_lower = rf_name.lower()
+                ipmi_lower = ipmi_name.lower()
+                
+                common_keywords = ['cpu', 'temp', 'core', 'processor', 'system', 'ambient']
+                
+                if any(keyword in rf_lower and keyword in ipmi_lower for keyword in common_keywords):
+                    common_sensors.add((rf_name, ipmi_name))
+                    if rf_name in redfish_only:
+                        redfish_only.remove(rf_name)
+                    if ipmi_name in ipmi_only:
+                        ipmi_only.remove(ipmi_name)
+        
+        logger.info(f"Общих сенсоров: {len(common_sensors)}")
+        
+        comparison_results = []
+        tolerance = 5.0 
+        
+        for rf_name, ipmi_name in common_sensors:
+            rf_value = redfish_sensors[rf_name]['value']
+            ipmi_value = ipmi_sensors[ipmi_name]['value']
+            difference = abs(rf_value - ipmi_value)
+            status = "Совпадает" if difference <= tolerance else "Не совпадает"
             
-            common_keywords = ['cpu', 'temp', 'core', 'processor', 'system', 'ambient']
+            logger.info(f"{status}: {rf_name} (Redfish): {rf_value} vs {ipmi_name} (IPMI): {ipmi_value} | Разница: {difference:.2f}")
             
-            if any(keyword in rf_lower and keyword in ipmi_lower for keyword in common_keywords):
-                common_sensors.add((rf_name, ipmi_name))
-                if rf_name in redfish_only:
-                    redfish_only.remove(rf_name)
-                if ipmi_name in ipmi_only:
-                    ipmi_only.remove(ipmi_name)
-    
-    print(f"Общие: {len(common_sensors)}")
-    
-    comparison_results = []
-    tolerance = 5.0 
-    
-    for rf_name, ipmi_name in common_sensors:
-        rf_value = redfish_sensors[rf_name]['value']
-        ipmi_value = ipmi_sensors[ipmi_name]['value']
-        difference = abs(rf_value - ipmi_value)
-        status = ""
-        if difference <= tolerance: 
-            status = "yes" 
+            comparison_results.append(difference <= tolerance)
+        
+        if redfish_only:
+            logger.info(f"Только в Redfish: {list(redfish_only)[:3]}...")
+        
+        if ipmi_only:
+            logger.info(f"Только в IPMI: {list(ipmi_only)[:3]}...")
+        
+        if common_sensors and comparison_results:
+            matching_count = sum(comparison_results)
+            total_count = len(comparison_results)
+            match_percentage = matching_count / total_count * 100
+            logger.info(f"Совпадения: {matching_count}/{total_count} ({match_percentage:.1f}%)")
+            return match_percentage >= 50.0
         else:
-            status = "no"
-        
-        print(f"{status} {rf_name} (Redfish): {rf_value} vs {ipmi_name} (IPMI): {ipmi_value} | Разн: {difference:.2f}")
-        
-        comparison_results.append(difference <= tolerance)
-    
-    if redfish_only:
-        print(f"Только Redfish: {list(redfish_only)[:3]}...")
-    
-    if ipmi_only:
-        print(f"Только IPMI: {list(ipmi_only)[:3]}...")
-    
-    if common_sensors and any(comparison_results):
-        matching_count = sum(comparison_results)
-        total_count = len(comparison_results)
-        print(f"Совпадения: {matching_count}/{total_count} ({matching_count/total_count*100:.1f}%)")
-        return matching_count / total_count >= 0.5  
-    else:
-        print("Нет совпадений")
+            logger.warning("Нет общих сенсоров для сравнения")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Ошибка сравнения сенсоров: {e}")
         return False
 
-def test_sensor_comparison():
-    assert compare_sensors_redfish_ipmi() == True
+def test_sensor_comparison(redfish_session, base_url):
+    assert compare_sensors_redfish_ipmi(redfish_session, base_url) == True
