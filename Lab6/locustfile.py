@@ -1,8 +1,10 @@
 from locust import HttpUser, task
+from requests.auth import HTTPBasicAuth
 
 class openBmcTester(HttpUser):
     
-    api_url = 'https://127.0.0.1:2443'
+    host = 'https://127.0.0.1:2443'
+    auth = HTTPBasicAuth('root', '0penBmc')
 
     def on_start(self):
         pass
@@ -13,27 +15,27 @@ class openBmcTester(HttpUser):
     @task(1)
     def sys_info(self):
         try:
-            response = self.client.get(self.api_url + 'Systems/system')
+            response = self.client.get('/redfish/v1/Systems/system', auth=self.auth, verify= False)
             data = response.json()
             has_Status = 'Status' in data
             has_Power = 'PowerState' in data
             if(not has_Status): print("NO STATUS")
             if(not has_Power): print("NO POWER")
             return response != None and has_Status and has_Power
-        except:
+        except Exception:
             print("API DOESN'T ANSWER")
  
     @task(2)
     def power_info(self):
         try:
-            response = self.client.get(self.api_url + 'Systems/system')
+            response = self.client.get(self.host + '/redfish/v1/Systems/system', auth=self.auth, verify= False)
             data = response.json()
 
             try:
                 power = data('PowerState')
-            except:
+            except Exception:
                 print("THERE'S NO FIELD PowerState in the API") 
 
             return (power != None)
-        except:
+        except Exception:
             print("API DOESN'T ANSWER")
