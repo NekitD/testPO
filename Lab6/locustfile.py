@@ -24,6 +24,7 @@ class openBmcTester(HttpUser):
             return response != None and has_Status and has_Power
         except Exception:
             print("API DOESN'T ANSWER")
+            return False
  
     @task(2)
     def power_info(self):
@@ -34,8 +35,10 @@ class openBmcTester(HttpUser):
             try:
                 power = data('PowerState')
             except Exception:
-                print("THERE'S NO FIELD PowerState in the API") 
+                print("THERE'S NO FIELD PowerState in the API")
+                return False 
 
             return (power != None)
         except Exception:
             print("API DOESN'T ANSWER")
+            return False
