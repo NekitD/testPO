@@ -5,8 +5,8 @@ pipeline {
         stage('Qemu') {
             steps{
                 echo 'Start qemu'
-                sh 'apt-get install qemu-system-arm'
-                sh 'apt-get update'
+                sh 'sudo apt-get install qemu-system-arm'
+                sh 'sudo apt-get update'
                 sh 'wget https://jenkins.openbmc.org/job/ci-openbmc/lastSuccessfulBuild/distro=ubuntu,label=docker-builder,target=romulus/artifact/openbmc/build/tmp/deploy/images/romulus/*zip*/romulus.zip'
                 sh 'unzip romulus.zip'
                 sh '''
