@@ -2,7 +2,7 @@ pipeline {
 
     agent {
         node {
-            label 'DoroginNSIP312' 
+            label 'TestNode' 
         }
     }
     stages{
