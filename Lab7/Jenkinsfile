@@ -2,26 +2,6 @@ pipeline {
 
     agent any 
     stages{
-        stage('Debug Workspace') {
-            steps {
-                sh '''
-                    echo "Current user: $(whoami)"
-                    echo "Workspace: $WORKSPACE"
-                    echo "PWD: $(pwd)"
-                    echo "Home: $HOME"
-                    ls -la
-                    git status || echo "Git not available"
-                '''
-            }
-        }
-        stage('Run Docker from Host') {
-            steps {
-                sh '''
-                    # Используем Docker с хоста (не из контейнера)
-                    docker run --rm ubuntu:22.04 echo "Hello from host Docker"
-                '''
-            }
-        }
         stage('Qemu') {
             steps{
                 echo 'Start qemu'
@@ -29,14 +9,8 @@ pipeline {
                 sh 'apt update'
                 sh 'wget https://jenkins.openbmc.org/job/ci-openbmc/lastSuccessfulBuild/distro=ubuntu,label=docker-builder,target=romulus/artifact/openbmc/build/tmp/deploy/images/romulus/*zip*/romulus.zip'
                 sh 'unzip romulus.zip'
-                sh '''
-                qemu-system-arm -m 256 -M romulus-bmc -nographic -drive file=romulus/obmc-phosphor-image-romulus-20250212052422.static.mtd,format=raw,if=mtd -net nic -net user,hostfwd=:0.0.0.0:2222-:22,hostfwd=:0.0.0.0:2443-:443,hostfwd=udp:0.0.0.0:2623-:623,hostname=qemu
-                expect "login:"
-                send "root\\r"
-                expect "Password:"
-                send "0penBmc\\r"
-                expect "root@romulus:"
-                '''
+                sh 'qemu-system-arm -m 256 -M romulus-bmc -nographic -drive file=romulus/obmc-phosphor-image-romulus-20250212052422.static.mtd,format=raw,if=mtd -net nic -net user,hostfwd=:0.0.0.0:2222-:22,hostfwd=:0.0.0.0:2443-:443,hostfwd=udp:0.0.0.0:2623-:623,hostname=qemu'
+
             }
         }
         stage('Auto') {
