@@ -2,6 +2,18 @@ pipeline {
 
     agent any 
     stages{
+        stage('Debug Workspace') {
+            steps {
+                sh '''
+                    echo "Current user: $(whoami)"
+                    echo "Workspace: $WORKSPACE"
+                    echo "PWD: $(pwd)"
+                    echo "Home: $HOME"
+                    ls -la
+                    git status || echo "Git not available"
+                '''
+            }
+        }
         stage('Qemu') {
             steps{
                 echo 'Start qemu'
