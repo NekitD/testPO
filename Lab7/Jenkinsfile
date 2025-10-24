@@ -1,4 +1,10 @@
 pipeline {
+
+    agent {
+        node {
+            label 'DoroginNSIP312' 
+        }
+    }
     stages{
         stage('Qemu') {
             steps{
