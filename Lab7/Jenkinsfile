@@ -16,6 +16,11 @@ pipeline {
                 LATEST_MTD=$(ls romulus/obmc-phosphor-image-romulus-*.static.mtd | sort -V | tail -1)
                 expect -c "
                 spawn qemu-system-arm -m 256 -M romulus-bmc -nographic -drive file=$LATEST_MTD,format=raw,if=mtd -net nic -net user,hostfwd=:0.0.0.0:2222-:22,hostfwd=:0.0.0.0:2443-:443,hostfwd=udp:0.0.0.0:2623-:623,hostname=qemu
+                sleep 120
+                send \"root\\r\"
+                sleep 2
+                send \"0penBmc\\r\"
+                expect \"root@romulus:\"
                 interact" &
                 QEMU_PID=$!
                 echo "QEMU запущен с PID: $QEMU_PID"
@@ -31,7 +36,7 @@ pipeline {
                 sh 'apt install -y python3-selenium'
                 sh '''cd Lab4
                 ls
-                pytest -v ob-autotests.py'''
+                pytest -v ob-autotests.py --html=report_ob-autotests.html --self-contained-html'''
                 sh 'cd ..'
             }
 
@@ -42,7 +47,7 @@ pipeline {
                 sh 'apt install -y python3 locust'
                 sh '''cd Lab6'
                 ls
-                timeout 180 locust --headless --users 50 --spawn-rate 5 --run-time 3m --host=https://127.0.0.1:2443'''
+                timeout 180 locust --headless --users 50 --spawn-rate 5 --run-time 3m --host=https://127.0.0.1:2443 --html=locust.html --self-contained-html'''
                 sh 'cd ..'
             }
         }
@@ -57,10 +62,15 @@ pipeline {
                         echo "Qemu shutted down"
                     fi
                     rm -rf romulus/ romulus.zip || true
-                    rm -f *.log *.pid *.json *.html *.csv || true
+                    rm -f *.log *.pid *.json *.csv || true
                     rm -f qemu.pid image_path.txt config.env || true
                     du -sh . | awk '{print $1}'
                 '''
+            }
+        }
+        post {
+        always {
+            archiveArtifacts artifacts: '**/*.html', fingerprint: true
             }
         }
     }
