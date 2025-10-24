@@ -14,15 +14,11 @@ pipeline {
                 '''
             }
         }
-        stage('Run as Root via Docker') {
+        stage('Run Docker from Host') {
             steps {
                 sh '''
-                    # Выполняем команды от root через Docker
-                    docker run --rm --user root ubuntu:22.04 bash -c "
-                        apt update
-                        apt install -y qemu-system-arm
-                        echo 'Я root! Мой ID: $(id -u)'
-                    "
+                    # Используем Docker с хоста (не из контейнера)
+                    docker run --rm ubuntu:22.04 echo "Hello from host Docker"
                 '''
             }
         }
