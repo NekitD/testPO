@@ -25,19 +25,23 @@ pipeline {
         }
         stage('Auto') {
             steps{
-                echo 'Start autotests'
-            }
-
-        }
-        stage('WebUI') {
-            steps{
-                echo 'Start WebUI tests'
+                echo 'Start autotests and WebUI tests'
+                sh 'apt install -y python3'
+                sh 'apt install -y python3-pytest'
+                sh 'apt install -y python3-selenium'
+                sh 'cd Lab4'
+                sh 'pytest -v ob-autotests.py'
+                sh 'cd ..'
             }
 
         }
         stage('Locust') {
             steps{
                 echo 'Start Locust tests'
+                sh 'apt install -y python3 locust'
+                sh 'cd Lab6'
+                sh 'timeout 180 locust --headless --users 50 --spawn-rate 5 --run-time 3m --host=https://127.0.0.1:2443'
+                sh 'cd ..'
             }
         }
         stage('Stop Qemu') {
