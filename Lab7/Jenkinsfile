@@ -5,8 +5,8 @@ pipeline {
         stage('Qemu') {
             steps{
                 echo 'Start qemu'
-                rm -rf romulus romulus.zip
-                rm -rf romulus romulus.zip.2
+                sh 'rm -rf romulus romulus.zip'
+                sh 'rm -rf romulus romulus.zip.2'
                 sh 'apt update'
                 sh 'apt install -y qemu-system'
                 sh 'apt install -y wget'
