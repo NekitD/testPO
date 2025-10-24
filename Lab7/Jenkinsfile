@@ -1,10 +1,6 @@
 pipeline {
 
-    agent {
-        node {
-            label 'мастер' 
-        }
-    }
+    agent any
     stages{
         stage('Qemu') {
             steps{
