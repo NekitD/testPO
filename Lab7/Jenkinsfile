@@ -1,3 +1,26 @@
 pipeline {
-    echo "TESTS"
+    stages{
+        stage('Qemu') {
+            steps{
+                echo 'Start qemu'
+            }
+        }
+        stage('Auto') {
+            steps{
+                echo 'Start autotests'
+            }
+
+        }
+        stage('WebUI') {
+            steps{
+                echo 'Start WebUI tests'
+            }
+
+        }
+        stage('Locust') {
+            steps{
+                echo 'Start Locust tests'
+            }
+        }
+    }
 }
