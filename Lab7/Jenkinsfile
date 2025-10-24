@@ -18,7 +18,7 @@ pipeline {
                 spawn qemu-system-arm -m 256 -M romulus-bmc -nographic -drive file=$LATEST_MTD,format=raw,if=mtd -net nic -net user,hostfwd=:0.0.0.0:2222-:22,hostfwd=:0.0.0.0:2443-:443,hostfwd=udp:0.0.0.0:2623-:623,hostname=qemu
                 sleep 120
                 send "root\r"
-                sleep 2
+                sleep 4
                 send "0penBmc\r"
                 expect \"root@romulus:\"
                 interact" &
@@ -36,7 +36,7 @@ pipeline {
                 sh 'apt install -y python3-selenium'
                 sh '''cd Lab4
                 ls
-                python3 -m pytest -v ob-autotests.py --html=report_ob-autotests.html --self-contained-html'''
+                python3 -m pytest -v ob-autotests.py > ob-autotest_results.txt 2>&1'''
                 sh 'cd ..'
             }
 
@@ -47,7 +47,7 @@ pipeline {
                 sh 'apt install -y python3 locust'
                 sh '''cd Lab6'
                 ls
-                timeout 180 locust --headless --users 50 --spawn-rate 5 --run-time 3m --host=https://127.0.0.1:2443 --html=locust.html'''
+                timeout 180 locust --headless --users 50 --spawn-rate 5 --run-time 3m --host=https://127.0.0.1:2443 > locust_results.txt 2>&1'''
                 sh 'cd ..'
             }
         }
@@ -71,7 +71,7 @@ pipeline {
     }
     post {
         always {
-            archiveArtifacts artifacts: '**/*.html', fingerprint: true
+            archiveArtifacts artifacts: '**/*.txt', fingerprint: true
             }
         }
 }
