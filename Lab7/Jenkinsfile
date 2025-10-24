@@ -1,12 +1,16 @@
 pipeline {
 
-    agent {
-        docker {
-            image 'ubuntu:22.04'
-            args '--privileged --user root -v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent any
     stages{
+        stage('Setup Environment') {
+            steps {
+                sh '''
+                    whoami
+                    pwd
+                    echo "Работаем напрямую на хосте Jenkins"
+                '''
+            }
+        }
         stage('Qemu') {
             steps{
                 echo 'Start qemu'
