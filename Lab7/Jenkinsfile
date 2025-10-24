@@ -2,15 +2,6 @@ pipeline {
 
     agent any
     stages{
-        stage('Setup Environment') {
-            steps {
-                sh '''
-                    whoami
-                    pwd
-                    echo "Работаем напрямую на хосте Jenkins"
-                '''
-            }
-        }
         stage('Qemu') {
             steps{
                 echo 'Start qemu'
