@@ -17,7 +17,7 @@ pipeline {
                 expect -c "
                 log_file -a qemu_result.txt
                 spawn qemu-system-arm -m 256 -M romulus-bmc -nographic -drive file=$LATEST_MTD,format=raw,if=mtd -net nic -net user,hostfwd=:0.0.0.0:2222-:22,hostfwd=:0.0.0.0:2443-:443,hostfwd=udp:0.0.0.0:2623-:623,hostname=qemu
-                sleep 120
+                sleep 300
                 send "root\r"
                 sleep 4
                 send "0penBmc\r"
